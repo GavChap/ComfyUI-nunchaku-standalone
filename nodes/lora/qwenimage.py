@@ -45,6 +45,10 @@ class NunchakuQwenImageLoraLoader:
     DESCRIPTION : str
         Node description.
     """
+    @classmethod
+    def IS_CHANGED(s, *args, **kwargs):
+        # This guarantees the node runs every time, ensuring the latest LoRA stack is always attached.
+        return float("NaN")
 
     @classmethod
     def INPUT_TYPES(s):
@@ -181,6 +185,10 @@ class NunchakuQwenImageLoraStack:
     DESCRIPTION : str
         Node description.
     """
+    @classmethod
+    def IS_CHANGED(s, *args, **kwargs):
+        # This guarantees the node runs every time, ensuring the latest LoRA stack is always attached.
+        return float("NaN")
 
     @classmethod
     def INPUT_TYPES(s):
@@ -306,8 +314,7 @@ class NunchakuQwenImageLoraStack:
         model_wrapper.model = transformer
         ret_model_wrapper.model = transformer  # Share the same transformer
 
-        # Clear existing LoRA list
-        ret_model_wrapper.loras = []
+        ret_model_wrapper.loras = model_wrapper.loras.copy()
 
         # Add all LoRAs
         for lora_name, lora_strength in loras_to_apply:
