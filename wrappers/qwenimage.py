@@ -98,9 +98,9 @@ class ComfyQwenImageWrapper(nn.Module):
         else:
             timestep_float = float(timestep)
 
-        logging.info(f"Are loras changed? {self._applied_loras == self.loras}")
+        logging.info(f"Are loras changed? {self._applied_loras != self.loras}")
         # Check if the LoRA stack has been changed by a loader node
-        if self._applied_loras != self.loras or timestep_float == 1:
+        if self._applied_loras != self.loras:
             # The compose function handles resetting before applying the new stack
             reset_lora_v2(self.model)
             self._applied_loras = self.loras.copy()

@@ -412,10 +412,11 @@ def compose_loras_v2(
 
     # 2. Apply aggregated weights to the model
     applied_modules_count = 0
+    invalid_modules: List[str] = []
     for module_name, parts in aggregated_weights.items():
         resolved_name, module = _resolve_module_name(model, module_name)
         if module is None or not (hasattr(module, "proj_down") and hasattr(module, "proj_up")):
-            logger.warning(f"Module '{module_name}' not found or not a valid LoRA target. Skipping.")
+            invalid_modules.append(module_name)
             continue
 
         all_A = []
@@ -447,6 +448,8 @@ def compose_loras_v2(
     logger.info(f"Applied LoRA compositions to {applied_modules_count} modules.")
     if unused_keys:
         logger.warning(f"Unused keys ({len(unused_keys)}): {unused_keys[:5]}...")
+    if invalid_modules:
+        logger.warning(f"Invalid modules ({len(invalid_modules)}): {invalid_modules[:5]}...")
 
 
 # --- Main Functions ---
