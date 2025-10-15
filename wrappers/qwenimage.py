@@ -91,14 +91,9 @@ class ComfyQwenImageWrapper(nn.Module):
         Detects changes to the `self.loras` list and recomposes the model
         on-the-fly before inference.
         """
-        logging.info(f"Timestep {timestep}")
 
-        if isinstance(timestep, torch.Tensor):
-            timestep_float = timestep.item() if timestep.numel() == 1 else timestep.flatten()[0].item()
-        else:
-            timestep_float = float(timestep)
+        timestep_float = timestep.item() if isinstance(timestep, torch.Tensor) else float(timestep)
 
-        logging.info(f"Are loras changed? {self._applied_loras != self.loras}")
         # Check if the LoRA stack has been changed by a loader node
         if self._applied_loras != self.loras:
             # The compose function handles resetting before applying the new stack
@@ -132,8 +127,9 @@ class ComfyQwenImageWrapper(nn.Module):
         model_device = next(self.model.parameters()).device
 
         # Move input tensors to the model's device
-        x = x.to(model_device)
-        if context is not None:
+        if x.device != model_device:
+            x = x.to(model_device)
+        if context is not None and context.device != model_device:
             context = context.to(model_device)
 
         # Keep original input shape check
