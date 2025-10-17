@@ -1,10 +1,7 @@
-import logging
 from typing import Callable, List, Tuple, Union
 from pathlib import Path
 
 import torch
-from comfy.ldm.common_dit import pad_to_patch_size
-from einops import rearrange, repeat
 from torch import nn
 
 from nunchaku import NunchakuQwenImageTransformer2DModel
@@ -43,6 +40,14 @@ class ComfyQwenImageWrapper(nn.Module):
         self._prev_timestep = None
         self._cache_context = None
 
+        # Reusable tensor caches keyed by (H, W, device, dtype, index, offsets)
+        self._img_ids_cache = {}
+        # Cache for txt ids keyed by (batch, seq_len, device, dtype)
+        self._txt_ids_cache = {}
+        # Base linspace caches keyed by (length, device, dtype)
+        self._linspace_cache_h = {}
+        self._linspace_cache_w = {}
+
     def to_safely(self, device):
         """Safely move the model to the specified device."""
         if hasattr(self.model, "to_safely"):
@@ -51,28 +56,6 @@ class ComfyQwenImageWrapper(nn.Module):
             self.model.to(device)
         return self
 
-    def process_img(self, x, index=0, h_offset=0, w_offset=0):
-        """Preprocess an input image tensor for the model."""
-        bs, c, h, w = x.shape
-        patch_size = self.config.get("patch_size", 2)
-        x = pad_to_patch_size(x, (patch_size, patch_size))
-
-        img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
-        h_len = (h + (patch_size // 2)) // patch_size
-        w_len = (w + (patch_size // 2)) // patch_size
-
-        h_offset = (h_offset + (patch_size // 2)) // patch_size
-        w_offset = (w_offset + (patch_size // 2)) // patch_size
-
-        img_ids = torch.zeros((h_len, w_len, 3), device=x.device, dtype=x.dtype)
-        img_ids[:, :, 0] = img_ids[:, :, 1] + index
-        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(
-            h_offset, h_len - 1 + h_offset, steps=h_len, device=x.device, dtype=x.dtype
-        ).unsqueeze(1)
-        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(
-            w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype
-        ).unsqueeze(0)
-        return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(
         self,
@@ -138,24 +121,26 @@ class ComfyQwenImageWrapper(nn.Module):
             x = x.squeeze(2)
 
         if self.customized_forward:
-            return self.customized_forward(
-                self.model,
-                hidden_states=x,
-                encoder_hidden_states=context,
-                timestep=timestep,
-                guidance=guidance if self.config.get("guidance_embed", False) else None,
-                control=control,
-                transformer_options=transformer_options,
-                **self.forward_kwargs,
-                **kwargs,
-            )
+            with torch.inference_mode():
+                return self.customized_forward(
+                    self.model,
+                    hidden_states=x,
+                    encoder_hidden_states=context,
+                    timestep=timestep,
+                    guidance=guidance if self.config.get("guidance_embed", False) else None,
+                    control=control,
+                    transformer_options=transformer_options,
+                    **self.forward_kwargs,
+                    **kwargs,
+                )
         else:
-            return self.model(
-                hidden_states=x,
-                encoder_hidden_states=context,
-                timestep=timestep,
-                guidance=guidance if self.config.get("guidance_embed", False) else None,
-                control=control,
-                transformer_options=transformer_options,
-                **kwargs,
-            )
+            with torch.inference_mode():
+                return self.model(
+                    hidden_states=x,
+                    encoder_hidden_states=context,
+                    timestep=timestep,
+                    guidance=guidance if self.config.get("guidance_embed", False) else None,
+                    control=control,
+                    transformer_options=transformer_options,
+                    **kwargs,
+                )

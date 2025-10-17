@@ -108,7 +108,7 @@ class NunchakuQwenImageLoraStack:
             },
             "optional": {},
         }
-        for i in range(1, 16):
+        for i in range(1, 6):
             inputs["optional"][f"lora_name_{i}"] = (["None"] + folder_paths.get_filename_list("loras"),)
             inputs["optional"][f"lora_strength_{i}"] = ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01})
         return inputs
@@ -122,7 +122,7 @@ class NunchakuQwenImageLoraStack:
 
     def load_lora_stack(self, model, **kwargs):
         loras_to_apply = []
-        for i in range(1, 16):
+        for i in range(1, 6):
             lora_name = kwargs.get(f"lora_name_{i}")
             lora_strength = kwargs.get(f"lora_strength_{i}", 1.0)
             if lora_name and lora_name != "None" and abs(lora_strength) > 1e-5:

@@ -190,7 +190,19 @@ class NunchakuQwenImageDiTLoader:
             A tuple containing the loaded and patched model.
         """
         model_path = folder_paths.get_full_path_or_raise("diffusion_models", model_name)
-        sd, metadata = comfy.utils.load_torch_file(model_path, return_metadata=True)
+
+        # In-process cache to avoid repeated disk I/O when toggling options
+        if not hasattr(self, "_sd_cache"):
+            self._sd_cache = {}
+
+        cache_key = model_path
+        cached = self._sd_cache.get(cache_key)
+        if cached is not None:
+            sd, metadata = cached
+            logger.debug(f"Using cached state_dict for {model_path}")
+        else:
+            sd, metadata = comfy.utils.load_torch_file(model_path, return_metadata=True)
+            self._sd_cache[cache_key] = (sd, metadata)
         model = load_diffusion_model_state_dict(sd, metadata=metadata)
 
         if cpu_offload == "auto":
